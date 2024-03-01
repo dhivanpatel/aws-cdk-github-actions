@@ -63,4 +63,4 @@ By following these steps and guidelines, you can set up a secure and automated d
 
 # IMPORTANT NOTE
 
-- This is a template so you need to enter correct information
+- This is a template so you need to enter correct information. Also this is for python but can work similarly for other languages.
