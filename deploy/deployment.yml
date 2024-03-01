@@ -1,0 +1,76 @@
+name: CDK Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Add workflow_dispatch to trigger manually
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read # This is required for actions/checkout
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<account>:role/<open-id-connect-role>
+          role-session-name: <open-id-role>
+          role-duration-seconds: 3600
+          aws-region: <region>
+
+      - name: Login to CodeArtifact
+        run: |
+          aws codeartifact login --tool pip --repository <repo_name> --domain <code_aritfact_domain> --domain-owner <account_number> --region <region>
+          aws codeartifact get-authorization-token --domain <code_aritfact_domain> --domain-owner <account_number> --region <region>
+
+      - name: Install CDK
+        run: |
+          npm install -g aws-cdk
+          cdk --version
+
+      - name: Create layers directories
+        run: |
+          mkdir -p layers/<layer>/python/
+          mkdir -p layers/pip/
+
+      - name: Copy Integration Source Code into Layers
+        run: |
+          cp -R ../<code> ./layers/<code>/python/
+
+      - name: Install Python dependencies
+        run: |
+          pip config debug
+          pip install --upgrade pip
+          pip install -r requirements.txt --verbose
+
+      - name: Install Lambda Layers Python dependencies
+        run: |
+          pip install -r lambda/<function>/requirements.txt -t layers/pip/python --platform manylinux2014_x86_64 --only-binary=:all: --python-version 3.11
+
+      - name: Synthesize CDK App
+        run: |
+          cdk synth
+
+      - name: Diff CDK App
+        run: |
+          cdk diff
+
+      - name: Deploy CDK App
+        run: |
+          cdk deploy
