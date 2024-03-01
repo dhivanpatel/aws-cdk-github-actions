@@ -1,0 +1,57 @@
+name: Source Code Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read # This is required for actions/checkout
+
+jobs:
+  tests-all:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<account>:role/<open-id-connect-role>
+          role-session-name: <open-id-connect-role>
+          role-duration-seconds: 3600
+          aws-region: <region>
+
+      - name: Login to CodeArtifact
+        run: |
+          aws codeartifact login --tool pip --repository <repo_name> --domain <code_aritfact_domain> --domain-owner <account_number> --region <region>
+          aws codeartifact get-authorization-token --domain <code_aritfact_domain> --domain-owner <account_number> --region <region>
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Unit Tests
+        run: |
+          python -m pytest ./tests/unit -v
+
+      - name: Run End to End Tests
+        run: |
+          python -m pytest ./tests/e2e -v
+
+      - name: Run Deployment Handler Tests
+        run: |
+          python -m pytest ./deploy/tests -v
+
+      - name: Coverage Report
+        run: |
+          python -m coverage run --module pytest  --verbose
+          python -m coverage report -m
